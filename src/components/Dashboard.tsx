@@ -4,19 +4,23 @@
  * Dashboard component for viewing service status and reports
  */
 
-import { useEffect, useState } from 'react';
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import type { ServiceStatus, ReportMetadata } from '@/lib/types';
+import { triggerSyncAction, logoutAction } from '@/app/actions';
 
-export default function Dashboard() {
-  const [status, setStatus] = useState<ServiceStatus | null>(null);
-  const [reports, setReports] = useState<ReportMetadata[]>([]);
-  const [loading, setLoading] = useState(true);
+interface DashboardProps {
+  status: ServiceStatus | null;
+  reports: ReportMetadata[];
+  error: string | null;
+}
+
+export default function Dashboard({ status, reports, error: initialError }: DashboardProps) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
   const [syncing, setSyncing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Note: In production, this would use the actual API with auth
-  // For the dashboard UI, we'll fetch data server-side and pass as props
-  // This is a placeholder for client-side interactivity
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [syncSuccess, setSyncSuccess] = useState(false);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString();
@@ -30,30 +34,60 @@ export default function Dashboard() {
 
   const triggerSync = async () => {
     setSyncing(true);
-    setError(null);
+    setSyncError(null);
+    setSyncSuccess(false);
 
     try {
-      // This is a placeholder - actual implementation would need API key
-      alert('Manual sync triggered! Check Vercel logs for progress.');
+      const result = await triggerSyncAction();
+
+      if (result.success) {
+        setSyncSuccess(true);
+        // Refresh the page data
+        startTransition(() => {
+          router.refresh();
+        });
+      } else {
+        setSyncError(result.error || 'Sync failed');
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to trigger sync');
+      setSyncError(err instanceof Error ? err.message : 'Failed to trigger sync');
     } finally {
       setSyncing(false);
     }
+  };
+
+  const handleLogout = async () => {
+    await logoutAction();
   };
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Tandem Source Sync Dashboard
-          </h1>
-          <p className="text-gray-600">
-            Monitor your automated diabetes data sync service
-          </p>
+        <div className="mb-8 flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              Tandem Source Sync Dashboard
+            </h1>
+            <p className="text-gray-600">
+              Monitor your automated diabetes data sync service
+            </p>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+          >
+            Logout
+          </button>
         </div>
+
+        {/* Global Error */}
+        {initialError && (
+          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+            <p className="text-sm font-medium text-red-900">Error loading dashboard:</p>
+            <p className="text-sm text-red-700 mt-1">{initialError}</p>
+          </div>
+        )}
 
         {/* Status Card */}
         <div className="bg-white shadow rounded-lg p-6 mb-6">
@@ -110,13 +144,26 @@ export default function Dashboard() {
             </div>
           )}
 
+          {syncError && (
+            <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-4">
+              <p className="text-sm font-medium text-red-900">Sync Error:</p>
+              <p className="text-sm text-red-700 mt-1">{syncError}</p>
+            </div>
+          )}
+
+          {syncSuccess && (
+            <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-4">
+              <p className="text-sm font-medium text-green-900">✓ Sync completed successfully!</p>
+            </div>
+          )}
+
           <div className="mt-6 pt-6 border-t border-gray-200">
             <button
               onClick={triggerSync}
-              disabled={syncing}
+              disabled={syncing || isPending}
               className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
             >
-              {syncing ? 'Syncing...' : 'Trigger Sync Now'}
+              {syncing ? 'Syncing...' : isPending ? 'Refreshing...' : 'Trigger Sync Now'}
             </button>
             <p className="text-sm text-gray-600 mt-2">
               Scheduled sync runs every 12 hours automatically
@@ -130,15 +177,9 @@ export default function Dashboard() {
 
           <div className="space-y-3">
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Tandem Username</span>
-              <span className="text-sm font-medium text-gray-900">
-                {process.env.NEXT_PUBLIC_TANDEM_USERNAME || '***@***'}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
               <span className="text-sm text-gray-600">Report Days</span>
               <span className="text-sm font-medium text-gray-900">
-                {process.env.NEXT_PUBLIC_REPORT_DAYS || '2'} days
+                2 days
               </span>
             </div>
             <div className="flex justify-between items-center">

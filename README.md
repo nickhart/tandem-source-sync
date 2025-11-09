@@ -83,6 +83,7 @@ Back in Vercel:
 | Variable | Value | Description |
 |----------|-------|-------------|
 | `API_KEY` | *your-generated-key* | The API key you generated in Step 3 |
+| `DASHBOARD_PASSWORD` | *your-secure-password* | **Recommended**: Password to protect web dashboard |
 | `TANDEM_USERNAME` | *your-email@example.com* | Your Tandem Source login email |
 | `TANDEM_PASSWORD` | *your-password* | Your Tandem Source password |
 | `REPORT_DAYS` | `2` | Number of days of data to download (default: 2) |
@@ -359,11 +360,14 @@ If you've configured all environment variables but still see the setup wizard:
 
 ## Security Notes
 
-- **API Key**: Keep your API key secret. Don't commit it to version control.
+- **API Key**: Keep your API key secret. Don't commit it to version control. Required for REST API access from your iOS app.
+- **Dashboard Password**: **Strongly recommended** to set `DASHBOARD_PASSWORD` to protect your web dashboard. Without it, anyone who knows your Vercel URL can view your sync status and trigger syncs. With it, you'll need to login before accessing the dashboard.
 - **Credentials**: Your Tandem credentials are stored only in Vercel environment variables, which are encrypted at rest.
 - **HTTPS**: All traffic uses HTTPS (enforced by Vercel).
 - **Single-User**: This service is designed for individual use, not multi-user scenarios.
-- **Data Access**: Only you can access your data (via API key authentication).
+- **Two-Layer Security**:
+  - Dashboard (web UI) protected by `DASHBOARD_PASSWORD`
+  - REST API (for iOS app) protected by `API_KEY`
 
 ## Data Handling
 
