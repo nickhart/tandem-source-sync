@@ -29,43 +29,60 @@ Before you begin, you'll need:
 - Tandem Diabetes Source account credentials
 - Node.js 18+ (only for local development/testing)
 
-## Quick Start: One-Click Deployment
+## Quick Start Deployment
 
-### 1. Deploy to Vercel
+### Step 1: Push to GitHub
 
-Click the button below to deploy to Vercel:
+If you haven't already, push this project to your GitHub repository:
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/yourusername/tandem-source-sync)
+```bash
+# Initialize git repository (if not already initialized)
+git init
 
-During deployment:
-- Choose a project name
-- Select your preferred region
-- Click "Deploy"
+# Add all files
+git add .
 
-### 2. Initial Configuration
+# Create initial commit
+git commit -m "Initial commit: Tandem Source Sync"
+
+# Add your GitHub repository as remote
+git remote add origin https://github.com/YOUR_USERNAME/tandem-source-sync.git
+
+# Push to GitHub
+git push -u origin main
+```
+
+Replace `YOUR_USERNAME` with your actual GitHub username.
+
+### Step 2: Import to Vercel
+
+1. Go to [Vercel Dashboard](https://vercel.com/dashboard)
+2. Click **Add New...** → **Project**
+3. Find your `tandem-source-sync` repository in the list
+4. Click **Import**
+5. Leave the default settings and click **Deploy**
+
+Vercel will build and deploy your project. This initial deployment will show the Setup Wizard (since no environment variables are configured yet).
+
+### Step 3: Visit Setup Wizard
 
 After deployment completes:
 
-1. Visit your deployed site URL (e.g., `https://your-project.vercel.app`)
-2. You'll see the **Setup Wizard** (shown when service is not yet configured)
-3. Follow the on-screen instructions:
+1. Click **Visit** to open your deployed site (e.g., `https://your-project.vercel.app`)
+2. You'll see the **Setup Wizard**
+3. Click **Generate API Key** and copy it to a secure location
+4. **Important**: Save this API key - you'll need it for your iOS app and Vercel configuration
 
-#### Step 1: Generate API Key
-- Click "Generate API Key"
-- Copy the generated key to a secure location
-- **Important**: Save this key - you'll need it for your iOS app
+### Step 4: Configure Environment Variables
 
-#### Step 2: Configure Environment Variables
+Back in Vercel:
 
-Go to your Vercel project settings:
-1. Open [Vercel Dashboard](https://vercel.com/dashboard)
-2. Select your project
-3. Go to **Settings** → **Environment Variables**
-4. Add the following variables:
+1. Go to your project → **Settings** → **Environment Variables**
+2. Add the following variables:
 
 | Variable | Value | Description |
 |----------|-------|-------------|
-| `API_KEY` | *your-generated-key* | The API key you generated in Step 1 |
+| `API_KEY` | *your-generated-key* | The API key you generated in Step 3 |
 | `TANDEM_USERNAME` | *your-email@example.com* | Your Tandem Source login email |
 | `TANDEM_PASSWORD` | *your-password* | Your Tandem Source password |
 | `REPORT_DAYS` | `2` | Number of days of data to download (default: 2) |
@@ -73,27 +90,30 @@ Go to your Vercel project settings:
 
 **Important**: Make sure to select all environments (Production, Preview, Development) for each variable.
 
-#### Step 3: Enable Vercel Blob Storage
+### Step 5: Enable Vercel Blob Storage
 
 1. In your Vercel project settings, go to **Storage**
 2. Click **Create Database** → **Blob**
 3. Follow the prompts to enable Blob storage
 4. Vercel will automatically add `BLOB_READ_WRITE_TOKEN` to your environment variables
 
-#### Step 4: Redeploy
+### Step 6: Redeploy
 
 After adding all environment variables:
+
 1. Go to **Deployments** tab
 2. Click the **•••** menu on the latest deployment
 3. Select **Redeploy**
 4. Wait for deployment to complete
 
-#### Step 5: Verify Setup
+### Step 7: Verify Setup
 
 1. Visit your site again
 2. You should now see the **Dashboard** instead of the setup wizard
-3. Click "Trigger Sync Now" to test the scraper
-4. Check Vercel logs to monitor progress
+3. Click **Trigger Sync Now** to test the scraper
+4. Check **Deployments** → **Functions** to monitor sync progress in the logs
+
+🎉 **Your automated Tandem Source sync service is now running!**
 
 ## API Documentation
 
@@ -382,6 +402,19 @@ With syncs every 12 hours, you'll use approximately:
 - ~60 function executions/month (2 per day × 30 days)
 - Each CSV is typically <100 KB
 - Well within free tier limits for individual use
+
+## Alternative: Deploy from Template
+
+If this repository is published as a public template, you can also use the "Deploy to Vercel" button:
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/yourusername/tandem-source-sync)
+
+This will:
+1. Clone the repository to your GitHub account
+2. Automatically import it to Vercel
+3. Deploy the project
+
+After deployment, follow Steps 3-7 from the Quick Start guide above to configure your service.
 
 ## Contributing
 
