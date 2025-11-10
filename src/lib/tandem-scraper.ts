@@ -19,12 +19,12 @@ async function createBrowser(): Promise<Browser> {
   console.log('[Scraper] Launching browser...', { isServerless });
 
   if (isServerless) {
-    // Use chromium.puppeteer for serverless (the correct way!)
-    return await chromium.puppeteer.launch({
+    // Use puppeteer with chromium-min's executable path
+    return await puppeteer.launch({
       args: chromium.args,
       defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath,
-      headless: chromium.headless,
+      executablePath: await chromium.executablePath(),
+      headless: true,
     });
   } else {
     // Use local Chrome for development
@@ -154,38 +154,45 @@ async function downloadReport(
     }
   });
 
-  // Find Export button by text content
-  const exportButton = await page.evaluateHandle(() => {
+  // Find and click Export button by text content
+  const exportButtonClicked = await page.evaluate(() => {
     const buttons = Array.from(document.querySelectorAll('button, a'));
-    return buttons.find(btn =>
+    const exportBtn = buttons.find(btn =>
       btn.textContent?.includes('Export CSV') ||
       btn.textContent?.includes('Export')
-    );
+    ) as HTMLElement | undefined;
+
+    if (exportBtn) {
+      exportBtn.click();
+      return true;
+    }
+    return false;
   });
 
-  if (!exportButton || await exportButton.evaluate(el => el === null)) {
+  if (!exportButtonClicked) {
     throw new Error('Could not find Export button');
   }
 
-  console.log('[Scraper] Clicking Export button...');
-  await (exportButton as any).click();
+  console.log('[Scraper] Clicked Export button...');
 
   // Check for modal confirmation
   await page.waitForTimeout(1000);
 
-  const modalButton = await page.evaluateHandle(() => {
+  const modalButtonClicked = await page.evaluate(() => {
     const modals = Array.from(document.querySelectorAll('div[role="dialog"], div.modal, div.modal-content'));
     for (const modal of modals) {
       const buttons = Array.from(modal.querySelectorAll('button'));
-      const exportBtn = buttons.find(btn => btn.textContent?.includes('Export'));
-      if (exportBtn) return exportBtn;
+      const exportBtn = buttons.find(btn => btn.textContent?.includes('Export')) as HTMLElement | undefined;
+      if (exportBtn) {
+        exportBtn.click();
+        return true;
+      }
     }
-    return null;
+    return false;
   });
 
-  if (modalButton && await modalButton.evaluate(el => el !== null)) {
-    console.log('[Scraper] Modal detected, clicking confirmation...');
-    await (modalButton as any).click();
+  if (modalButtonClicked) {
+    console.log('[Scraper] Modal detected, clicked confirmation...');
   }
 
   console.log('[Scraper] Waiting for download to complete...');
@@ -205,7 +212,9 @@ async function downloadReport(
   // Read the file from /tmp
   const fs = await import('fs/promises');
   const path = await import('path');
-  const filePath = path.join('/tmp', downloadedFile.suggestedFilename);
+  // Type assertion needed because downloadedFile is modified in callback
+  const filename = (downloadedFile as { guid: string; suggestedFilename: string }).suggestedFilename;
+  const filePath = path.join('/tmp', filename);
 
   const buffer = await fs.readFile(filePath);
 
