@@ -9,8 +9,8 @@ import chromium from '@sparticuz/chromium';
 import type { ScraperOptions, ScraperResult } from './types';
 import type { Browser, Page } from 'puppeteer-core';
 
-// Determine if we're running in a serverless environment
-const isServerless = !!process.env.VERCEL || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
+// Determine if we're running in a serverless environment (production)
+const isServerless = process.env.VERCEL_ENV === 'production' || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
 
 /**
  * Helper function to delay execution (replaces deprecated page.waitForTimeout)
