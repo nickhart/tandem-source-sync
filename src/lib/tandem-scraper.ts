@@ -19,12 +19,27 @@ async function createBrowser(): Promise<Browser> {
   console.log('[Scraper] Launching browser...', { isServerless });
 
   if (isServerless) {
-    // Use puppeteer with chromium-min's executable path
+    // Use puppeteer with chromium-min from CDN
+    // chromium-min requires a CDN URL for the binary
+    const executablePath = await chromium.executablePath(
+      // This URL hosts the chromium binary compatible with our version
+      'https://github.com/Sparticuz/chromium/releases/download/v126.0.0/chromium-v126.0.0-pack.tar'
+    );
+
+    console.log('[Scraper] Chromium executable path:', executablePath);
+
     return await puppeteer.launch({
-      args: chromium.args,
+      args: [
+        ...chromium.args,
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+      ],
       defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath(),
+      executablePath,
       headless: true,
+      ignoreHTTPSErrors: true,
     });
   } else {
     // Use local Chrome for development
