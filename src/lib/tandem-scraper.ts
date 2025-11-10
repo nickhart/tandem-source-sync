@@ -1,53 +1,43 @@
 /**
- * Playwright-based web scraper for Tandem Source
+ * Puppeteer-based web scraper for Tandem Source
  * Automates login and CSV report download
- * Using @sparticuz/chromium-min@126 (minimal build for serverless)
+ * Using @sparticuz/chromium-min (designed for Puppeteer, not Playwright!)
  */
 
-import { chromium, type Browser, type Page } from 'playwright-core';
-import chromiumPkg from '@sparticuz/chromium-min';
+import puppeteer from 'puppeteer-core';
+import chromium from '@sparticuz/chromium-min';
 import type { ScraperOptions, ScraperResult } from './types';
+import type { Browser, Page } from 'puppeteer-core';
 
 // Determine if we're running in a serverless environment
 const isServerless = !!process.env.VERCEL || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
 
 /**
- * Gets the appropriate Chromium executable path
- */
-async function getChromiumPath(): Promise<string> {
-  if (isServerless) {
-    // Use @sparticuz/chromium for serverless environments
-    return await chromiumPkg.executablePath();
-  } else {
-    // Use system Chromium for local development
-    // Playwright will use bundled browser or system browser
-    return '';
-  }
-}
-
-/**
  * Creates a browser instance with appropriate settings
  */
 async function createBrowser(): Promise<Browser> {
-  const executablePath = await getChromiumPath();
-
-  const launchOptions: Parameters<typeof chromium.launch>[0] = {
-    headless: true,
-    args: isServerless ? chromiumPkg.args : [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-    ],
-  };
-
-  // Only set executablePath if we have one (serverless)
-  if (executablePath) {
-    launchOptions.executablePath = executablePath;
-  }
-
   console.log('[Scraper] Launching browser...', { isServerless });
-  return await chromium.launch(launchOptions);
+
+  if (isServerless) {
+    // Use chromium.puppeteer for serverless (the correct way!)
+    return await chromium.puppeteer.launch({
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath,
+      headless: chromium.headless,
+    });
+  } else {
+    // Use local Chrome for development
+    return await puppeteer.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+      ],
+    });
+  }
 }
 
 /**
@@ -62,41 +52,50 @@ async function performLogin(
 
   // Navigate to the main page
   await page.goto('https://source.tandemdiabetes.com/', {
-    waitUntil: 'networkidle',
+    waitUntil: 'networkidle0',
     timeout: 60000,
   });
 
   console.log('[Scraper] Waiting for SSO redirect...');
 
   // Wait for redirect to SSO login page
-  await page.waitForURL('https://sso.tandemdiabetes.com/**', {
+  await page.waitForNavigation({
+    waitUntil: 'networkidle0',
     timeout: 30000,
   });
 
+  // Verify we're on SSO page
+  const url = page.url();
+  if (!url.includes('sso.tandemdiabetes.com')) {
+    throw new Error('Did not redirect to SSO login page');
+  }
+
   console.log('[Scraper] On SSO login page, filling credentials...');
 
-  // Fill in username
-  const usernameField = page.locator('input[name="username"], input[type="email"], input#username');
-  await usernameField.waitFor({ state: 'visible', timeout: 10000 });
-  await usernameField.fill(username);
+  // Find and fill username field
+  const usernameSelector = 'input[name="username"], input[type="email"], input#username';
+  await page.waitForSelector(usernameSelector, { visible: true, timeout: 10000 });
+  await page.type(usernameSelector, username);
 
-  // Fill in password
-  const passwordField = page.locator('input[name="password"], input[type="password"], input#password');
-  await passwordField.waitFor({ state: 'visible', timeout: 10000 });
-  await passwordField.fill(password);
+  // Find and fill password field
+  const passwordSelector = 'input[name="password"], input[type="password"], input#password';
+  await page.waitForSelector(passwordSelector, { visible: true, timeout: 10000 });
+  await page.type(passwordSelector, password);
 
   console.log('[Scraper] Submitting login form...');
 
-  // Submit the form
-  const submitButton = page.locator('button[type="submit"], input[type="submit"], button:has-text("Sign In"), button:has-text("Log In")');
-  await submitButton.click();
+  // Click submit and wait for navigation
+  const submitSelector = 'button[type="submit"], input[type="submit"]';
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 60000 }),
+    page.click(submitSelector),
+  ]);
 
-  console.log('[Scraper] Waiting for authentication...');
-
-  // Wait for redirect back to source.tandemdiabetes.com
-  await page.waitForURL('https://source.tandemdiabetes.com/**', {
-    timeout: 60000,
-  });
+  // Verify we're back on source.tandemdiabetes.com
+  const newUrl = page.url();
+  if (!newUrl.includes('source.tandemdiabetes.com')) {
+    throw new Error('Login failed - did not redirect back to source.tandemdiabetes.com');
+  }
 
   console.log('[Scraper] Login successful!');
 }
@@ -110,110 +109,112 @@ async function downloadReport(
 ): Promise<Buffer> {
   console.log('[Scraper] Navigating to reports section...');
 
-  // Navigate to the reports overview page
-  await page.goto('https://source.tandemdiabetes.com/reports/overview', {
-    waitUntil: 'networkidle',
-    timeout: 60000,
-  });
-
-  console.log('[Scraper] Navigating to Daily Timeline tab...');
-
   // Navigate to the Daily Timeline tab
   await page.goto('https://source.tandemdiabetes.com/reports/timeline', {
-    waitUntil: 'networkidle',
+    waitUntil: 'networkidle0',
     timeout: 60000,
   });
 
   console.log(`[Scraper] Configuring time range for ${reportDays} days...`);
 
-  // Find and click the time range dropdown
-  // This selector may need adjustment based on actual page structure
-  const timeRangeDropdown = page.locator(
-    'select[name*="range"], select[name*="days"], button:has-text("Last"), [data-testid*="date"], [data-testid*="range"]'
-  ).first();
-
+  // Try to configure time range (may need adjustment based on actual page)
   try {
-    await timeRangeDropdown.waitFor({ state: 'visible', timeout: 10000 });
+    const selectSelector = 'select[name*="range"], select[name*="days"]';
+    const selectExists = await page.$(selectSelector);
 
-    // If it's a select element, choose the appropriate option
-    if (await timeRangeDropdown.evaluate(el => el.tagName === 'SELECT')) {
-      // Try to find an option that matches our desired days
-      const options = await page.locator(`${timeRangeDropdown} option`).all();
-      let optionFound = false;
-
-      for (const option of options) {
-        const text = await option.textContent();
-        if (text?.includes(String(reportDays)) || text?.includes(`${reportDays} day`)) {
-          await timeRangeDropdown.selectOption({ label: text });
-          optionFound = true;
-          break;
-        }
-      }
-
-      if (!optionFound) {
-        console.warn(`[Scraper] Could not find option for ${reportDays} days, using default`);
-      }
+    if (selectExists) {
+      await page.select(selectSelector, String(reportDays));
+      console.log('[Scraper] Time range configured');
     } else {
-      // If it's a button or custom dropdown, click it
-      await timeRangeDropdown.click();
-      await page.waitForTimeout(1000);
-
-      // Try to find and click the option for desired days
-      const dayOption = page.locator(`text="${reportDays} day", text="${reportDays} Day"`).first();
-      if (await dayOption.isVisible({ timeout: 5000 }).catch(() => false)) {
-        await dayOption.click();
-      }
+      console.warn('[Scraper] Could not find time range selector, using default');
     }
   } catch (error) {
-    console.warn('[Scraper] Could not configure time range, proceeding with default:', error);
+    console.warn('[Scraper] Could not configure time range:', error);
   }
 
-  // Wait for any data to load
+  // Wait for data to load
   await page.waitForTimeout(3000);
 
   console.log('[Scraper] Looking for Export CSV button...');
 
-  // Find and click the "Export CSV" button
-  const exportButton = page.locator(
-    'button:has-text("Export CSV"), button:has-text("Export"), a:has-text("Export CSV"), [data-testid*="export"]'
-  ).first();
+  // Set up download handling using Chrome DevTools Protocol
+  const client = await page.target().createCDPSession();
+  await client.send('Page.setDownloadBehavior', {
+    behavior: 'allow',
+    downloadPath: '/tmp',
+  });
 
-  await exportButton.waitFor({ state: 'visible', timeout: 15000 });
+  // Track download
+  let downloadedFile: { guid: string; suggestedFilename: string } | null = null;
 
-  // Set up download listener BEFORE clicking
-  const downloadPromise = page.waitForEvent('download', { timeout: 60000 });
+  client.on('Page.downloadProgress', (event: any) => {
+    if (event.state === 'completed') {
+      downloadedFile = event;
+      console.log('[Scraper] Download completed:', event.suggestedFilename);
+    }
+  });
 
-  await exportButton.click();
+  // Find Export button by text content
+  const exportButton = await page.evaluateHandle(() => {
+    const buttons = Array.from(document.querySelectorAll('button, a'));
+    return buttons.find(btn =>
+      btn.textContent?.includes('Export CSV') ||
+      btn.textContent?.includes('Export')
+    );
+  });
 
-  console.log('[Scraper] Export button clicked, checking for modal...');
-
-  // Check if there's a modal with a confirmation button
-  const modalExportButton = page.locator(
-    'div[role="dialog"] button:has-text("Export"), div.modal button:has-text("Export"), div.modal-content button:has-text("Export")'
-  ).first();
-
-  const isModalVisible = await modalExportButton.isVisible({ timeout: 3000 }).catch(() => false);
-
-  if (isModalVisible) {
-    console.log('[Scraper] Modal detected, clicking Export button in modal...');
-    await modalExportButton.click();
+  if (!exportButton || await exportButton.evaluate(el => el === null)) {
+    throw new Error('Could not find Export button');
   }
 
-  console.log('[Scraper] Waiting for download to start...');
+  console.log('[Scraper] Clicking Export button...');
+  await (exportButton as any).click();
 
-  // Wait for the download
-  const download = await downloadPromise;
+  // Check for modal confirmation
+  await page.waitForTimeout(1000);
 
-  console.log('[Scraper] Download started, reading file...');
-
-  // Get the download as a buffer
-  const buffer = await download.createReadStream().then(async (stream) => {
-    const chunks: Buffer[] = [];
-    for await (const chunk of stream) {
-      chunks.push(chunk);
+  const modalButton = await page.evaluateHandle(() => {
+    const modals = Array.from(document.querySelectorAll('div[role="dialog"], div.modal, div.modal-content'));
+    for (const modal of modals) {
+      const buttons = Array.from(modal.querySelectorAll('button'));
+      const exportBtn = buttons.find(btn => btn.textContent?.includes('Export'));
+      if (exportBtn) return exportBtn;
     }
-    return Buffer.concat(chunks);
+    return null;
   });
+
+  if (modalButton && await modalButton.evaluate(el => el !== null)) {
+    console.log('[Scraper] Modal detected, clicking confirmation...');
+    await (modalButton as any).click();
+  }
+
+  console.log('[Scraper] Waiting for download to complete...');
+
+  // Wait for download to complete (up to 60 seconds)
+  const startTime = Date.now();
+  while (!downloadedFile && Date.now() - startTime < 60000) {
+    await page.waitForTimeout(500);
+  }
+
+  if (!downloadedFile) {
+    throw new Error('Download did not complete within 60 seconds');
+  }
+
+  console.log('[Scraper] Reading downloaded file...');
+
+  // Read the file from /tmp
+  const fs = await import('fs/promises');
+  const path = await import('path');
+  const filePath = path.join('/tmp', downloadedFile.suggestedFilename);
+
+  const buffer = await fs.readFile(filePath);
+
+  // Clean up
+  try {
+    await fs.unlink(filePath);
+  } catch (error) {
+    console.warn('[Scraper] Could not delete temp file:', error);
+  }
 
   console.log(`[Scraper] CSV downloaded successfully (${buffer.length} bytes)`);
 
@@ -237,21 +238,22 @@ export async function scrapeTandemSource(
     } = options;
 
     console.log('[Scraper] Starting Tandem Source scraper...', {
-      username: username.substring(0, 3) + '***', // Partially mask for privacy
+      username: username.substring(0, 3) + '***',
       reportDays,
+      isServerless,
     });
 
     // Create browser
     browser = await createBrowser();
-    const context = await browser.newContext({
-      viewport: { width: 1280, height: 720 },
-      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    });
+    const page = await browser.newPage();
 
-    const page = await context.newPage();
+    // Set viewport and user agent
+    await page.setViewport({ width: 1280, height: 720 });
+    await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
-    // Set a global timeout
+    // Set timeouts
     page.setDefaultTimeout(timeout);
+    page.setDefaultNavigationTimeout(timeout);
 
     // Perform login
     await performLogin(page, username, password);
