@@ -1,11 +1,11 @@
 /**
  * Puppeteer-based web scraper for Tandem Source
  * Automates login and CSV report download
- * Using @sparticuz/chromium-min (designed for Puppeteer, not Playwright!)
+ * Using @sparticuz/chromium (full package with all dependencies)
  */
 
 import puppeteer from 'puppeteer-core';
-import chromium from '@sparticuz/chromium-min';
+import chromium from '@sparticuz/chromium';
 import type { ScraperOptions, ScraperResult } from './types';
 import type { Browser, Page } from 'puppeteer-core';
 
@@ -19,23 +19,13 @@ async function createBrowser(): Promise<Browser> {
   console.log('[Scraper] Launching browser...', { isServerless });
 
   if (isServerless) {
-    // Use puppeteer with chromium-min from CDN
-    // chromium-min requires a CDN URL for the binary
-    const executablePath = await chromium.executablePath(
-      // This URL hosts the chromium binary compatible with our version
-      'https://github.com/Sparticuz/chromium/releases/download/v126.0.0/chromium-v126.0.0-pack.tar'
-    );
+    // Full chromium package includes binaries and all dependencies
+    const executablePath = await chromium.executablePath();
 
     console.log('[Scraper] Chromium executable path:', executablePath);
 
     return await puppeteer.launch({
-      args: [
-        ...chromium.args,
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-      ],
+      args: chromium.args,
       defaultViewport: chromium.defaultViewport,
       executablePath,
       headless: true,
