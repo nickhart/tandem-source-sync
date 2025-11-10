@@ -9,10 +9,10 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@sparticuz/chromium": "^123.0.1",
+    "@sparticuz/chromium": "^126.0.0",
     "@vercel/blob": "^2.0.0",
     "next": "16.0.1",
-    "playwright-core": "^1.40.0",
+    "playwright-core": "^1.42.0",
     "react": "19.2.0",
     "react-dom": "19.2.0"
   },

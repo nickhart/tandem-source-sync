@@ -1,7 +1,7 @@
 /**
  * Playwright-based web scraper for Tandem Source
  * Automates login and CSV report download
- * Using stable versions: @sparticuz/chromium@123 + playwright-core@1.40
+ * Using @sparticuz/chromium@126 (bundles NSS libraries for Vercel)
  */
 
 import { chromium, type Browser, type Page } from 'playwright-core';
