@@ -31,10 +31,12 @@ async function createBrowser(): Promise<Browser> {
 
     return await puppeteer.launch({
       args: chromium.args,
-      defaultViewport: chromium.defaultViewport,
+      defaultViewport: {
+        width: 1280,
+        height: 720,
+      },
       executablePath,
       headless: "shell",
-      ignoreHTTPSErrors: true,
     });
   } else {
     // Use local Chrome for development
