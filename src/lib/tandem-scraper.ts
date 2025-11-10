@@ -13,6 +13,11 @@ import type { Browser, Page } from 'puppeteer-core';
 const isServerless = !!process.env.VERCEL || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
 
 /**
+ * Helper function to delay execution (replaces deprecated page.waitForTimeout)
+ */
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
  * Creates a browser instance with appropriate settings
  */
 async function createBrowser(): Promise<Browser> {
@@ -28,7 +33,7 @@ async function createBrowser(): Promise<Browser> {
       args: chromium.args,
       defaultViewport: chromium.defaultViewport,
       executablePath,
-      headless: true,
+      headless: "shell",
       ignoreHTTPSErrors: true,
     });
   } else {
@@ -138,7 +143,7 @@ async function downloadReport(
   }
 
   // Wait for data to load
-  await page.waitForTimeout(3000);
+  await delay(3000);
 
   console.log('[Scraper] Looking for Export CSV button...');
 
@@ -181,7 +186,7 @@ async function downloadReport(
   console.log('[Scraper] Clicked Export button...');
 
   // Check for modal confirmation
-  await page.waitForTimeout(1000);
+  await delay(1000);
 
   const modalButtonClicked = await page.evaluate(() => {
     const modals = Array.from(document.querySelectorAll('div[role="dialog"], div.modal, div.modal-content'));
@@ -205,7 +210,7 @@ async function downloadReport(
   // Wait for download to complete (up to 60 seconds)
   const startTime = Date.now();
   while (!downloadedFile && Date.now() - startTime < 60000) {
-    await page.waitForTimeout(500);
+    await delay(500);
   }
 
   if (!downloadedFile) {
