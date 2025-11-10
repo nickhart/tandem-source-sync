@@ -1,11 +1,11 @@
 /**
  * Playwright-based web scraper for Tandem Source
  * Automates login and CSV report download
- * Using @sparticuz/chromium@126 (bundles NSS libraries for Vercel)
+ * Using @sparticuz/chromium-min@126 (minimal build for serverless)
  */
 
 import { chromium, type Browser, type Page } from 'playwright-core';
-import chromiumPkg from '@sparticuz/chromium';
+import chromiumPkg from '@sparticuz/chromium-min';
 import type { ScraperOptions, ScraperResult } from './types';
 
 // Determine if we're running in a serverless environment
