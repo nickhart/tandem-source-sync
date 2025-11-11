@@ -1,9 +1,25 @@
 /**
- * Vercel Blob Storage utilities for managing CSV reports
+ * Storage utilities for managing CSV reports
+ * Supports both Vercel Blob (production) and local filesystem (development)
  */
 
 import { put, list, del } from '@vercel/blob';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 import type { ReportMetadata, SyncResult } from './types';
+
+// Local storage directory
+const LOCAL_STORAGE_DIR = path.join(process.cwd(), 'local-storage');
+const LOCAL_REPORTS_DIR = path.join(LOCAL_STORAGE_DIR, 'reports');
+const LOCAL_SYNC_STATUS_FILE = path.join(LOCAL_STORAGE_DIR, 'sync-status.json');
+
+/**
+ * Determines if we should use local filesystem storage
+ */
+function isLocalMode(): boolean {
+  return !process.env.BLOB_READ_WRITE_TOKEN ||
+         process.env.BLOB_READ_WRITE_TOKEN === 'your-blob-token-here';
+}
 
 /**
  * Generates a filename for a CSV report based on timestamp
@@ -21,8 +37,100 @@ export function generateReportFilename(timestamp: Date = new Date()): string {
   return `tandem-report-${year}-${month}-${day}-${hours}${minutes}${seconds}.csv`;
 }
 
+// ============================================================================
+// LOCAL FILESYSTEM IMPLEMENTATIONS
+// ============================================================================
+
 /**
- * Stores a CSV report in Vercel Blob storage
+ * Stores a CSV report to local filesystem
+ */
+async function storeReportLocal(
+  csvBuffer: Buffer,
+  filename: string
+): Promise<{ url: string; filename: string }> {
+  await fs.mkdir(LOCAL_REPORTS_DIR, { recursive: true });
+  const filePath = path.join(LOCAL_REPORTS_DIR, filename);
+  await fs.writeFile(filePath, csvBuffer);
+
+  console.log(`[Local Storage] Report stored: ${filename}`);
+
+  return {
+    url: `file://${filePath}`,
+    filename,
+  };
+}
+
+/**
+ * Lists reports from local filesystem
+ */
+async function listReportsLocal(): Promise<ReportMetadata[]> {
+  try {
+    await fs.mkdir(LOCAL_REPORTS_DIR, { recursive: true });
+    const files = await fs.readdir(LOCAL_REPORTS_DIR);
+
+    const reports: ReportMetadata[] = [];
+
+    for (const filename of files) {
+      if (filename.startsWith('tandem-report-') && filename.endsWith('.csv')) {
+        const filePath = path.join(LOCAL_REPORTS_DIR, filename);
+        const stats = await fs.stat(filePath);
+
+        reports.push({
+          filename,
+          url: `file://${filePath}`,
+          size: stats.size,
+          uploadedAt: stats.mtime.toISOString(),
+          downloadedAt: stats.mtime.toISOString(),
+        });
+      }
+    }
+
+    // Sort by modified date, newest first
+    reports.sort((a, b) =>
+      new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
+    );
+
+    console.log(`[Local Storage] Found ${reports.length} reports`);
+    return reports;
+  } catch (error) {
+    console.error('[Local Storage] Error listing reports:', error);
+    return [];
+  }
+}
+
+/**
+ * Stores sync status to local filesystem
+ */
+async function storeSyncStatusLocal(syncResult: SyncResult): Promise<void> {
+  try {
+    await fs.mkdir(LOCAL_STORAGE_DIR, { recursive: true });
+    const statusJson = JSON.stringify(syncResult, null, 2);
+    await fs.writeFile(LOCAL_SYNC_STATUS_FILE, statusJson, 'utf-8');
+    console.log('[Local Storage] Sync status stored');
+  } catch (error) {
+    console.error('[Local Storage] Error storing sync status:', error);
+  }
+}
+
+/**
+ * Retrieves sync status from local filesystem
+ */
+async function getSyncStatusLocal(): Promise<SyncResult | null> {
+  try {
+    const data = await fs.readFile(LOCAL_SYNC_STATUS_FILE, 'utf-8');
+    return JSON.parse(data) as SyncResult;
+  } catch (error) {
+    // File doesn't exist yet
+    return null;
+  }
+}
+
+// ============================================================================
+// PUBLIC API (routes to local or production)
+// ============================================================================
+
+/**
+ * Stores a CSV report
  * @param csvBuffer - The CSV file content as a Buffer
  * @param filename - Optional custom filename (will be auto-generated if not provided)
  * @returns The blob URL and metadata
@@ -32,6 +140,10 @@ export async function storeReport(
   filename?: string
 ): Promise<{ url: string; filename: string }> {
   const reportFilename = filename || generateReportFilename();
+
+  if (isLocalMode()) {
+    return storeReportLocal(csvBuffer, reportFilename);
+  }
 
   try {
     const blob = await put(reportFilename, csvBuffer, {
@@ -56,6 +168,10 @@ export async function storeReport(
  * @returns Array of report metadata objects
  */
 export async function listReports(): Promise<ReportMetadata[]> {
+  if (isLocalMode()) {
+    return listReportsLocal();
+  }
+
   try {
     const { blobs } = await list({
       prefix: 'tandem-report-',
@@ -96,11 +212,15 @@ export async function deleteReport(filename: string): Promise<void> {
 }
 
 /**
- * Stores sync status information in blob storage
+ * Stores sync status information
  * This is a simple JSON file to track the last sync operation
  * @param syncResult - The sync result to store
  */
 export async function storeSyncStatus(syncResult: SyncResult): Promise<void> {
+  if (isLocalMode()) {
+    return storeSyncStatusLocal(syncResult);
+  }
+
   try {
     const statusJson = JSON.stringify(syncResult, null, 2);
     await put('sync-status.json', statusJson, {
@@ -120,6 +240,10 @@ export async function storeSyncStatus(syncResult: SyncResult): Promise<void> {
  * @returns The last sync result, or null if not found
  */
 export async function getSyncStatus(): Promise<SyncResult | null> {
+  if (isLocalMode()) {
+    return getSyncStatusLocal();
+  }
+
   try {
     const { blobs } = await list({
       prefix: 'sync-status.json',

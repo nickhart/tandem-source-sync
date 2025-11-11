@@ -5,6 +5,7 @@
  */
 
 import { redirect } from 'next/navigation';
+import { headers } from 'next/headers';
 import SetupWizard from '@/components/SetupWizard';
 import Dashboard from '@/components/Dashboard';
 import { validateScraperConfig } from '@/lib/tandem-scraper';
@@ -59,8 +60,14 @@ export default async function Home() {
     error = err instanceof Error ? err.message : 'Failed to load dashboard data';
   }
 
+  // Get base URL from headers (server-side)
+  const headersList = await headers();
+  const host = headersList.get('host') || '';
+  const protocol = host.includes('localhost') ? 'http' : 'https';
+  const baseUrl = `${protocol}://${host}`;
+
   // Show dashboard with real data
-  return <Dashboard status={status} reports={reports} error={error} />;
+  return <Dashboard status={status} reports={reports} error={error} baseUrl={baseUrl} />;
 }
 
 // Disable static optimization to check env vars and session on each request

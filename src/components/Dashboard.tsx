@@ -13,9 +13,10 @@ interface DashboardProps {
   status: ServiceStatus | null;
   reports: ReportMetadata[];
   error: string | null;
+  baseUrl?: string;
 }
 
-export default function Dashboard({ status, reports, error: initialError }: DashboardProps) {
+export default function Dashboard({ status, reports, error: initialError, baseUrl }: DashboardProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [syncing, setSyncing] = useState(false);
@@ -253,7 +254,7 @@ export default function Dashboard({ status, reports, error: initialError }: Dash
             Use the following base URL in your iOS app:
           </p>
           <code className="block bg-blue-100 text-blue-900 px-3 py-2 rounded text-sm font-mono">
-            {typeof window !== 'undefined' ? window.location.origin : 'https://your-app.vercel.app'}
+            {baseUrl || 'https://your-app.vercel.app'}
           </code>
           <p className="text-sm text-blue-800 mt-2">
             Don't forget to configure your API key in the iOS app settings!
