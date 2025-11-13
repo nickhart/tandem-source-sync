@@ -2,15 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   // Prevent Next.js from bundling serverless packages with binaries
-  // This is critical for @sparticuz/chromium to work correctly
-  serverExternalPackages: ['@sparticuz/chromium', 'puppeteer-core'],
-
-  // Force Vercel to include @sparticuz/chromium bin files
-  outputFileTracingIncludes: {
-    '/api/**': [
-      './node_modules/@sparticuz/chromium/bin/**/*',
-    ],
-  },
+  // @sparticuz/chromium-min uses remote tar file, so no bin files needed
+  serverExternalPackages: ['@sparticuz/chromium-min', 'puppeteer-core'],
 };
 
 export default nextConfig;
