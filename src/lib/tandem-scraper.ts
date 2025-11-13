@@ -92,7 +92,10 @@ async function createBrowser(): Promise<Browser> {
         '--disable-dev-shm-usage',
         '--single-process',
       ],
-      defaultViewport: chromium.defaultViewport,
+      defaultViewport: {
+        width: 1280,
+        height: 720,
+      },
       executablePath,
       headless: true, // Must be explicitly true for chromium v141+
     });
