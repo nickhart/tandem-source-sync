@@ -340,13 +340,18 @@ async function performLogin(
     throw new Error('Could not find Next button');
   }
 
-  await delay(2000);
+  // Serverless environments need more time for page transitions
+  const nextClickDelay = isServerless ? 5000 : 2000;
+  const passwordTimeout = isServerless ? 30000 : 10000;
+
+  console.log(`[Scraper] Waiting ${nextClickDelay}ms after Next click for page transition...`);
+  await delay(nextClickDelay);
   await debugCapture(page, '05b-after-next-click');
 
   // Step 3: Wait for password field to appear and fill it
-  console.log('[Scraper] Waiting for password field...');
+  console.log(`[Scraper] Waiting for password field (timeout: ${passwordTimeout}ms)...`);
   const passwordSelector = 'input[name="password"], input[type="password"], input#password';
-  await page.waitForSelector(passwordSelector, { visible: true, timeout: 10000 });
+  await page.waitForSelector(passwordSelector, { visible: true, timeout: passwordTimeout });
   await page.type(passwordSelector, password);
   console.log('[Scraper] Password filled');
 
