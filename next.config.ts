@@ -6,12 +6,10 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ['@sparticuz/chromium', 'puppeteer-core'],
 
   // Force Vercel to include @sparticuz/chromium bin files
-  experimental: {
-    outputFileTracingIncludes: {
-      '/api/**': [
-        './node_modules/@sparticuz/chromium/bin/**/*',
-      ],
-    },
+  outputFileTracingIncludes: {
+    '/api/**': [
+      './node_modules/@sparticuz/chromium/bin/**/*',
+    ],
   },
 };
 
