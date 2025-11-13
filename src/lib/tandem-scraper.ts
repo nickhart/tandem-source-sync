@@ -33,7 +33,7 @@ async function debugCapture(page: Page, stepName: string): Promise<void> {
     await fs.mkdir(debugDir, { recursive: true });
 
     // Screenshot
-    const screenshotPath = path.join(debugDir, `${timestamp}-${stepName}.png`);
+    const screenshotPath = path.join(debugDir, `${timestamp}-${stepName}.png`) as `${string}.png`;
     await page.screenshot({ path: screenshotPath, fullPage: true });
 
     // HTML
@@ -131,18 +131,23 @@ async function performLogin(
   await debugCapture(page, '01-initial-page');
 
   // Check for cookie modal first (it's an overlay that may block other interactions)
-  const cookieButton = await page.evaluateHandle(() => {
+  const cookieButtonClicked = await page.evaluate(() => {
     const buttons = Array.from(document.querySelectorAll('button'));
-    return buttons.find(btn =>
+    const cookieBtn = buttons.find(btn =>
       btn.textContent?.toLowerCase().includes('accept') ||
       btn.textContent?.toLowerCase().includes('agree') ||
       btn.textContent?.toLowerCase().includes('cookie')
-    );
+    ) as HTMLElement | undefined;
+
+    if (cookieBtn) {
+      cookieBtn.click();
+      return true;
+    }
+    return false;
   });
 
-  if (cookieButton && await cookieButton.evaluate(el => el !== null)) {
+  if (cookieButtonClicked) {
     console.log('[Scraper] Cookie modal detected, clicking accept...');
-    await (cookieButton as any).click();
     await delay(1000);
     await debugCapture(page, '02-after-cookie-accept');
   }
@@ -460,7 +465,7 @@ async function downloadReport(
 
   client.on('Page.downloadProgress', (event: any) => {
     if (event.state === 'completed') {
-      downloadedFile = event;
+      downloadedFile = event as { guid: string; suggestedFilename: string };
       console.log('[Scraper] Download completed:', event.suggestedFilename);
     }
   });
@@ -519,7 +524,8 @@ async function downloadReport(
   while (!filename && Date.now() - startTime < 60000) {
     // Check if CDP event fired
     if (downloadedFile) {
-      filename = downloadedFile.suggestedFilename;
+      const file = downloadedFile as { guid: string; suggestedFilename: string };
+      filename = file.suggestedFilename;
       console.log('[Scraper] Download completed via CDP event:', filename);
       break;
     }
