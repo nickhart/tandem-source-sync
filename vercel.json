@@ -2,5 +2,12 @@
   "crons": [{
     "path": "/api/cron",
     "schedule": "0 */12 * * *"
-  }]
+  }],
+  "functions": {
+    "api/**/*.ts": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  },
+  "includeFiles": "node_modules/@sparticuz/chromium/bin/**"
 }

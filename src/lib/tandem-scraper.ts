@@ -69,12 +69,26 @@ async function createBrowser(): Promise<Browser> {
 
   if (isServerless) {
     // Serverless: Use puppeteer-core with @sparticuz/chromium
+    // Set font configuration paths for Lambda environment
+    process.env.FONTCONFIG_PATH = '/tmp';
+    process.env.HOME = '/tmp';
+
     const executablePath = await chromium.executablePath();
 
     console.log('[Scraper] Chromium executable path:', executablePath);
+    console.log('[Scraper] Working directory:', process.cwd());
+    console.log('[Scraper] HOME:', process.env.HOME);
+    console.log('[Scraper] FONTCONFIG_PATH:', process.env.FONTCONFIG_PATH);
 
     return await puppeteerCore.launch({
-      args: chromium.args,
+      args: [
+        ...chromium.args,
+        '--disable-gpu',
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--single-process',
+      ],
       defaultViewport: {
         width: 1280,
         height: 720,
